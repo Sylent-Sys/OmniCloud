@@ -9,6 +9,13 @@ import {
 	IconPlugConnected,
 	IconPlugConnectedX,
 	IconRefresh,
+	IconArrowUp,
+	IconArrowDown,
+	IconGripVertical,
+	IconDeviceFloppy,
+	IconCheck,
+	IconChartPie,
+	IconAdjustments,
 } from '@tabler/icons-vue';
 import dropboxLogo from '../assets/dropbox.svg';
 import googleDriveLogo from '../assets/google-drive.svg';
@@ -29,6 +36,37 @@ const actionError = ref('');
 const isSyncing = ref(false);
 const isConnectMenuOpen = ref(false);
 const isMegaModalOpen = ref(false);
+
+const ALLOCATION_STRATEGIES = ['round_robin', 'weighted_round_robin', 'least_used', 'most_free', 'manual'];
+const activeTab = ref('overview');
+const selectedStrategy = ref('round_robin');
+const allocationOrder = ref([]);
+const isAllocationLoading = ref(false);
+const isSavingAllocation = ref(false);
+const allocationError = ref('');
+const allocationSaved = ref(false);
+const dragIndex = ref(null);
+
+const allocationStrategyOptions = computed(() =>
+	ALLOCATION_STRATEGIES.map((key) => ({
+		key,
+		label: t(`allocation.strategies.${key}`),
+		description: t(`allocation.strategies.${key}_desc`),
+	})),
+);
+
+const orderedAllocationAccounts = computed(() => {
+	const byId = new Map(accounts.value.map((account) => [account.id, account]));
+	const ordered = [];
+	allocationOrder.value.forEach((id) => {
+		if (byId.has(id)) {
+			ordered.push(byId.get(id));
+			byId.delete(id);
+		}
+	});
+	[...byId.values()].forEach((account) => ordered.push(account));
+	return ordered;
+});
 
 const totalUsed = computed(() => accounts.value.reduce((sum, account) => sum + Number(account.used_space || 0), 0));
 const totalSpace = computed(() => accounts.value.reduce((sum, account) => sum + Number(account.total_space || 0), 0));
@@ -231,6 +269,87 @@ async function handleAccountAction(account) {
 
 async function loadPage() {
 	await accountStore.loadAccounts();
+	await loadAllocation();
+}
+
+async function loadAllocation() {
+	isAllocationLoading.value = true;
+	allocationError.value = '';
+	try {
+		const { data } = await api.getAllocation();
+		if (data?.strategy && ALLOCATION_STRATEGIES.includes(data.strategy)) {
+			selectedStrategy.value = data.strategy;
+		}
+		allocationOrder.value = Array.isArray(data?.accounts)
+			? data.accounts.map((account) => account.id)
+			: [];
+	} catch (error) {
+		allocationError.value = error.message;
+	} finally {
+		isAllocationLoading.value = false;
+	}
+}
+
+function selectStrategy(key) {
+	if (!ALLOCATION_STRATEGIES.includes(key)) return;
+	selectedStrategy.value = key;
+	allocationSaved.value = false;
+}
+
+function syncOrderFromAccounts() {
+	allocationOrder.value = orderedAllocationAccounts.value.map((account) => account.id);
+}
+
+function moveAccount(index, direction) {
+	syncOrderFromAccounts();
+	const target = index + direction;
+	if (target < 0 || target >= allocationOrder.value.length) return;
+	const next = [...allocationOrder.value];
+	[next[index], next[target]] = [next[target], next[index]];
+	allocationOrder.value = next;
+	allocationSaved.value = false;
+}
+
+function onDragStart(index) {
+	syncOrderFromAccounts();
+	dragIndex.value = index;
+}
+
+function onDragOver(index, event) {
+	event.preventDefault();
+	if (dragIndex.value === null || dragIndex.value === index) return;
+	const next = [...allocationOrder.value];
+	const [moved] = next.splice(dragIndex.value, 1);
+	next.splice(index, 0, moved);
+	allocationOrder.value = next;
+	dragIndex.value = index;
+	allocationSaved.value = false;
+}
+
+function onDragEnd() {
+	dragIndex.value = null;
+}
+
+async function saveAllocation() {
+	isSavingAllocation.value = true;
+	allocationError.value = '';
+	allocationSaved.value = false;
+	syncOrderFromAccounts();
+	try {
+		const { data } = await api.updateAllocation({
+			strategy: selectedStrategy.value,
+			order: allocationOrder.value,
+		});
+		if (data?.strategy) selectedStrategy.value = data.strategy;
+		allocationOrder.value = Array.isArray(data?.accounts)
+			? data.accounts.map((account) => account.id)
+			: allocationOrder.value;
+		allocationSaved.value = true;
+	} catch (error) {
+		allocationError.value = error.message;
+	} finally {
+		isSavingAllocation.value = false;
+	}
 }
 
 async function connectGoogleDrive() {
@@ -364,7 +483,22 @@ onMounted(loadPage);
 				</div>
 			</div>
 
-			<section class="mb-6 rounded-[28px] border border-[#e0e3e7] bg-white p-5 dark:border-slate-700 dark:bg-slate-900/70">
+			<div class="mb-5 flex items-center gap-1 rounded-full border border-[#e0e3e7] bg-[#f8fafd] p-1 dark:border-slate-700 dark:bg-slate-900/60 sm:w-fit">
+				<button type="button" class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition" :class="activeTab === 'overview'
+					? 'bg-white text-[#1a73e8] shadow-sm dark:bg-slate-800 dark:text-sky-300'
+					: 'text-[#5f6368] hover:text-[#202124] dark:text-slate-400 dark:hover:text-slate-200'" @click="activeTab = 'overview'">
+					<IconChartPie :size="18" :stroke="1.9" />
+					<span>{{ t('storage.tabOverview') }}</span>
+				</button>
+				<button type="button" class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition" :class="activeTab === 'allocation'
+					? 'bg-white text-[#1a73e8] shadow-sm dark:bg-slate-800 dark:text-sky-300'
+					: 'text-[#5f6368] hover:text-[#202124] dark:text-slate-400 dark:hover:text-slate-200'" @click="activeTab = 'allocation'">
+					<IconAdjustments :size="18" :stroke="1.9" />
+					<span>{{ t('storage.tabAllocation') }}</span>
+				</button>
+			</div>
+
+			<section v-show="activeTab === 'overview'" class="mb-6 rounded-[28px] border border-[#e0e3e7] bg-white p-5 dark:border-slate-700 dark:bg-slate-900/70">
 				<div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
 					<div class="flex items-center gap-3">
 						<div class="grid size-12 place-items-center rounded-2xl bg-[#e8f0fe] text-[#1a73e8] dark:bg-slate-800">
@@ -443,6 +577,66 @@ onMounted(loadPage);
 						</div>
 					</div>
 				</div>
+			</section>
+
+			<section v-show="activeTab === 'allocation'" class="mb-6 rounded-[28px] border border-[#e0e3e7] bg-white p-5 dark:border-slate-700 dark:bg-slate-900/70">
+				<div class="flex flex-col gap-1">
+					<h2 class="text-lg font-medium">{{ t('allocation.title') }}</h2>
+					<p class="text-sm text-[#5f6368] dark:text-slate-400">{{ t('allocation.subtitle') }}</p>
+				</div>
+
+				<div v-if="!accounts.length" class="mt-4 rounded-2xl border border-dashed border-[#dadce0] bg-[#f8fafd] px-4 py-6 text-center text-sm text-[#5f6368] dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400">
+					{{ t('allocation.noAccounts') }}
+				</div>
+
+				<template v-else>
+					<div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+						<button v-for="option in allocationStrategyOptions" :key="option.key" type="button" class="flex flex-col gap-1 rounded-2xl border p-4 text-left transition" :class="selectedStrategy === option.key
+							? 'border-[#1a73e8] bg-[#e8f0fe] dark:border-sky-500 dark:bg-sky-950/30'
+							: 'border-[#e3e8ee] bg-[#f8fafd] hover:border-[#c7dafc] dark:border-slate-700 dark:bg-slate-800/70 dark:hover:border-sky-900/60'" @click="selectStrategy(option.key)">
+							<span class="flex items-center justify-between gap-2">
+								<span class="text-sm font-semibold" :class="selectedStrategy === option.key ? 'text-[#1a73e8] dark:text-sky-300' : ''">{{ option.label }}</span>
+								<IconCheck v-if="selectedStrategy === option.key" :size="18" :stroke="2.2" class="text-[#1a73e8] dark:text-sky-300" />
+							</span>
+							<span class="text-xs leading-relaxed text-[#5f6368] dark:text-slate-400">{{ option.description }}</span>
+						</button>
+					</div>
+
+					<div class="mt-5 rounded-2xl border border-[#e3e8ee] bg-[#f8fafd] p-4 dark:border-slate-700 dark:bg-slate-800/70" :class="selectedStrategy === 'manual' ? '' : 'opacity-80'">
+						<div class="flex items-center justify-between gap-3">
+							<h3 class="text-sm font-semibold">{{ t('allocation.orderTitle') }}</h3>
+						</div>
+						<p class="mt-1 text-xs text-[#5f6368] dark:text-slate-400">{{ t('allocation.reorderHint') }}</p>
+
+						<ul class="mt-3 grid gap-2">
+							<li v-for="(account, index) in orderedAllocationAccounts" :key="account.id" draggable="true" class="flex items-center gap-3 rounded-xl border border-[#e3e8ee] bg-white px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/70" :class="dragIndex === index ? 'ring-2 ring-[#1a73e8] dark:ring-sky-500' : ''" @dragstart="onDragStart(index)" @dragover="onDragOver(index, $event)" @dragend="onDragEnd">
+								<span class="cursor-grab text-[#9aa0a6] active:cursor-grabbing dark:text-slate-500"><IconGripVertical :size="18" :stroke="1.8" /></span>
+								<span class="grid size-7 shrink-0 place-items-center rounded-full bg-[#e8f0fe] text-xs font-semibold text-[#1a73e8] dark:bg-slate-800 dark:text-sky-300">{{ index + 1 }}</span>
+								<div class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-[#f1f3f4] dark:bg-slate-800">
+									<img v-if="providerIcon(account.provider)" :src="providerIcon(account.provider)" :alt="providerLabel(account.provider)" class="size-4 object-contain" />
+								</div>
+								<div class="min-w-0 flex-1">
+									<TruncateMarquee as="p" class="text-sm font-medium" :text="account.email" />
+									<p class="text-xs text-[#5f6368] dark:text-slate-400">{{ providerLabel(account.provider) }} · {{ formatBytes(Number(account.total_space) - Number(account.used_space)) }} {{ t('storage.free').toLowerCase() }}</p>
+								</div>
+								<div class="flex shrink-0 items-center gap-1">
+									<button type="button" class="grid size-8 place-items-center rounded-full text-[#5f6368] transition hover:bg-[#f1f3f4] disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800" :disabled="index === 0" :title="t('allocation.moveUp')" @click="moveAccount(index, -1)"><IconArrowUp :size="16" :stroke="2" /></button>
+									<button type="button" class="grid size-8 place-items-center rounded-full text-[#5f6368] transition hover:bg-[#f1f3f4] disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800" :disabled="index === orderedAllocationAccounts.length - 1" :title="t('allocation.moveDown')" @click="moveAccount(index, 1)"><IconArrowDown :size="16" :stroke="2" /></button>
+								</div>
+							</li>
+						</ul>
+					</div>
+
+					<div class="mt-4 flex flex-wrap items-center justify-end gap-3">
+						<span v-if="allocationSaved" class="inline-flex items-center gap-1.5 text-sm text-[#188038] dark:text-emerald-400"><IconCheck :size="16" :stroke="2.2" />{{ t('allocation.saved') }}</span>
+						<button type="button" class="inline-flex items-center gap-2 rounded-full bg-[#1a73e8] px-4 py-2 text-white disabled:opacity-60" :disabled="isSavingAllocation || isAllocationLoading" @click="saveAllocation">
+							<IconDeviceFloppy :size="18" :stroke="2" />
+							<span>{{ isSavingAllocation ? t('allocation.saving') : t('allocation.save') }}</span>
+						</button>
+					</div>
+
+					<p v-if="allocationError" class="mt-3 rounded-2xl bg-[#fce8e6] px-4 py-3 text-sm text-[#c5221f] dark:bg-red-950/40 dark:text-red-300">{{ allocationError }}</p>
+				</template>
 			</section>
 
 			<p v-if="actionError || error" class="mb-4 rounded-2xl bg-[#fce8e6] px-4 py-3 text-sm text-[#c5221f] dark:bg-red-950/40 dark:text-red-300">{{ actionError || error }}</p>

@@ -243,6 +243,8 @@
 	"storage": {
 		"title": "Storage",
 		"subtitle": "View all cloud accounts, their quotas, then connect or disconnect accounts.",
+		"tabOverview": "Overview",
+		"tabAllocation": "Allocation",
 		"totalStorage": "Total storage",
 		"usedSpace": "Used space",
 		"freeSpace": "Free space",
@@ -258,6 +260,30 @@
 		"disconnectConfirm": "Disconnect account {email}?",
 		"noAccounts": "No accounts connected yet.",
 		"reconnectNotSupported": "Provider {provider} does not support automatic reconnect."
+	},
+	"allocation": {
+		"title": "Storage allocation",
+		"subtitle": "Choose how new uploads are distributed across your connected accounts.",
+		"save": "Save changes",
+		"saving": "Saving...",
+		"saved": "Allocation settings saved.",
+		"reorderHint": "Drag accounts to set the upload priority. Newly connected accounts go to the end.",
+		"orderTitle": "Account order",
+		"moveUp": "Move up",
+		"moveDown": "Move down",
+		"noAccounts": "Connect at least one account to configure allocation.",
+		"strategies": {
+			"round_robin": "Round Robin",
+			"round_robin_desc": "Uploads take turns across accounts in order, regardless of capacity.",
+			"weighted_round_robin": "Weighted Round Robin",
+			"weighted_round_robin_desc": "Larger accounts receive proportionally more uploads based on capacity.",
+			"least_used": "Least Used",
+			"least_used_desc": "Sends each upload to the account with the lowest used percentage.",
+			"most_free": "Most Free Space",
+			"most_free_desc": "Sends each upload to the account with the most free space. Best for large files.",
+			"manual": "Custom Order",
+			"manual_desc": "Fills accounts in the exact order you set below."
+		}
 	},
 	"fileExplorer": {
 		"unifiedExplorer": "Unified file explorer",

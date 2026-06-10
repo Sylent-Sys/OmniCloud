@@ -243,6 +243,8 @@
 	"storage": {
 		"title": "Penyimpanan",
 		"subtitle": "Lihat semua akun cloud, kuota masing-masing, lalu hubungkan atau putuskan akun.",
+		"tabOverview": "Ringkasan",
+		"tabAllocation": "Alokasi",
 		"totalStorage": "Total penyimpanan",
 		"usedSpace": "Ruang terpakai",
 		"freeSpace": "Ruang kosong",
@@ -258,6 +260,30 @@
 		"disconnectConfirm": "Putuskan akun {email}?",
 		"noAccounts": "Belum ada akun terhubung.",
 		"reconnectNotSupported": "Provider {provider} belum mendukung reconnect otomatis."
+	},
+	"allocation": {
+		"title": "Alokasi penyimpanan",
+		"subtitle": "Atur bagaimana unggahan baru dibagi ke seluruh akun yang terhubung.",
+		"save": "Simpan perubahan",
+		"saving": "Menyimpan...",
+		"saved": "Pengaturan alokasi tersimpan.",
+		"reorderHint": "Seret akun untuk mengatur prioritas unggahan. Akun yang baru terhubung otomatis di urutan akhir.",
+		"orderTitle": "Urutan akun",
+		"moveUp": "Naikkan",
+		"moveDown": "Turunkan",
+		"noAccounts": "Hubungkan minimal satu akun untuk mengatur alokasi.",
+		"strategies": {
+			"round_robin": "Round Robin",
+			"round_robin_desc": "Unggahan bergiliran antar akun sesuai urutan, tanpa memperhatikan kapasitas.",
+			"weighted_round_robin": "Weighted Round Robin",
+			"weighted_round_robin_desc": "Akun berkapasitas besar mendapat lebih banyak unggahan sesuai bobot kapasitas.",
+			"least_used": "Paling Sedikit Terpakai",
+			"least_used_desc": "Mengirim tiap unggahan ke akun dengan persentase terpakai paling rendah.",
+			"most_free": "Ruang Kosong Terbanyak",
+			"most_free_desc": "Mengirim tiap unggahan ke akun dengan ruang kosong terbanyak. Cocok untuk file besar.",
+			"manual": "Urutan Kustom",
+			"manual_desc": "Mengisi akun sesuai urutan yang kamu atur di bawah."
+		}
 	},
 	"fileExplorer": {
 		"unifiedExplorer": "Unified file explorer",

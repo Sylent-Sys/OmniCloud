@@ -161,4 +161,13 @@ export const api = {
 	updateSettings(payload) {
 		return settingsApi.updateSettings(payload);
 	},
+	getAllocation() {
+		return request('/allocation');
+	},
+	updateAllocation(payload) {
+		return request('/allocation', {
+			method: 'PATCH',
+			body: JSON.stringify(payload),
+		});
+	},
 };
