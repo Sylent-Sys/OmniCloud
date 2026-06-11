@@ -24,7 +24,11 @@ function mapSharedItem(userId, account, item, localFile = getFileByRemoteId(user
 		email: item.owner_email || localFile?.email || account.email,
 		createdTime: item.createdTime,
 		modifiedTime: item.modifiedTime,
-		capabilities: localFile?.capabilities || { starred: account.provider === 'google_drive' },
+		capabilities: {
+			starred: Boolean(item.capabilities?.starred ?? localFile?.capabilities?.starred ?? account.provider === 'google_drive'),
+			rename: Boolean(item.capabilities?.rename ?? localFile?.capabilities?.rename ?? false),
+			delete: Boolean(item.capabilities?.delete ?? localFile?.capabilities?.delete ?? false),
+		},
 	};
 }
 
@@ -87,7 +91,9 @@ async function getSharedFileContext(userId, fileId) {
 			provider: account.provider,
 			email: file.owner_email || account.email,
 			capabilities: {
-				starred: account.provider === 'google_drive',
+				starred: Boolean(file.capabilities?.starred ?? account.provider === 'google_drive'),
+				rename: Boolean(file.capabilities?.rename ?? false),
+				delete: Boolean(file.capabilities?.delete ?? false),
 			},
 		},
 		account,
@@ -127,6 +133,15 @@ function ensureFileContext(context, res) {
 	return true;
 }
 
+async function deleteContextFile(userId, context, rawId = context?.file?.id, options = {}) {
+	const { sync = true } = options;
+	await context.adapter.deleteFile(context.file);
+
+	if (sync && context.account) {
+		await syncAccount(userId, context.account);
+	}
+}
+
 async function listSharedWithMeFiles(userId) {
 	const accounts = getActiveAccounts(userId);
 	const settled = await Promise.allSettled(accounts.map(async (account) => {
@@ -141,6 +156,8 @@ async function listSharedWithMeFiles(userId) {
 	return settled
 		.filter((result) => result.status === 'fulfilled')
 		.flatMap((result) => result.value)
+		.filter((item) => Boolean(item.remote_file_id))
+		.filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index)
 		.sort((left, right) => {
 			const leftTime = new Date(left.modifiedTime || left.createdTime || 0).getTime();
 			const rightTime = new Date(right.modifiedTime || right.createdTime || 0).getTime();
@@ -224,7 +241,7 @@ router.post('/files/bulk/delete', async (req, res, next) => {
 
 		const touchedAccountIds = new Set();
 		for (const context of contexts) {
-			await context.adapter.deleteFile(context.file);
+			await deleteContextFile(req.user.id, context, context.id, { sync: false });
 			touchedAccountIds.add(context.account.id);
 		}
 
@@ -341,8 +358,7 @@ router.delete('/files/:id', async (req, res, next) => {
 			return;
 		}
 
-		await context.adapter.deleteFile(context.file);
-		await syncAccount(req.user.id, context.account);
+		await deleteContextFile(req.user.id, context, req.params.id);
 
 		return res.json({ data: { success: true } });
 	} catch (error) {

@@ -21,6 +21,8 @@ export class OneDriveAdapter extends BaseCloudAdapter {
 	getCapabilities() {
 		return {
 			starred: false,
+			rename: true,
+			delete: true,
 		};
 	}
 
@@ -230,6 +232,11 @@ export class OneDriveAdapter extends BaseCloudAdapter {
 				modifiedTime: remote.lastModifiedDateTime || null,
 				owner_name: remote.createdBy?.user?.displayName || null,
 				owner_email: remote.createdBy?.user?.email || this.account.email,
+				capabilities: {
+					starred: false,
+					rename: false,
+					delete: false,
+				},
 			}));
 	}
 
@@ -261,6 +268,11 @@ export class OneDriveAdapter extends BaseCloudAdapter {
 			modifiedTime: remote.lastModifiedDateTime || null,
 			owner_name: remote.createdBy?.user?.displayName || null,
 			owner_email: remote.createdBy?.user?.email || this.account.email,
+			capabilities: {
+				starred: false,
+				rename: false,
+				delete: false,
+			},
 		}));
 	}
 

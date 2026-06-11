@@ -18,6 +18,8 @@ export class GoogleDriveAdapter extends BaseCloudAdapter {
 	getCapabilities() {
 		return {
 			starred: true,
+			rename: true,
+			delete: true,
 		};
 	}
 
@@ -95,7 +97,7 @@ export class GoogleDriveAdapter extends BaseCloudAdapter {
 
 		do {
 			const response = await drive.files.list({
-				q: 'trashed = false',
+				q: "trashed = false and 'me' in owners",
 				fields: 'nextPageToken, files(id, name, mimeType, size, parents, starred, createdTime, modifiedTime)',
 				pageSize: 1000,
 				pageToken,
@@ -154,7 +156,7 @@ export class GoogleDriveAdapter extends BaseCloudAdapter {
 		do {
 			const response = await drive.files.list({
 				q: 'sharedWithMe = true and trashed = false',
-				fields: 'nextPageToken, files(id, name, mimeType, size, parents, starred, createdTime, modifiedTime, owners(displayName,emailAddress))',
+				fields: 'nextPageToken, files(id, name, mimeType, size, parents, starred, createdTime, modifiedTime, owners(displayName,emailAddress), capabilities(canEdit,canRename,canDelete,canRemoveMyDriveParent))',
 				pageSize: 1000,
 				pageToken,
 				supportsAllDrives: false,
@@ -177,6 +179,11 @@ export class GoogleDriveAdapter extends BaseCloudAdapter {
 			modifiedTime: file.modifiedTime || null,
 			owner_name: file.owners?.[0]?.displayName || null,
 			owner_email: file.owners?.[0]?.emailAddress || this.account.email,
+			capabilities: {
+				starred: true,
+				rename: Boolean(file.capabilities?.canRename || file.capabilities?.canEdit),
+				delete: Boolean(file.capabilities?.canDelete),
+			},
 		}));
 	}
 
@@ -188,7 +195,7 @@ export class GoogleDriveAdapter extends BaseCloudAdapter {
 		do {
 			const response = await drive.files.list({
 				q: [`'${escapeDriveQueryValue(folderRecord.remote_file_id)}' in parents`, 'trashed = false'].join(' and '),
-				fields: 'nextPageToken, files(id, name, mimeType, size, parents, starred, createdTime, modifiedTime, owners(displayName,emailAddress))',
+				fields: 'nextPageToken, files(id, name, mimeType, size, parents, starred, createdTime, modifiedTime, owners(displayName,emailAddress), capabilities(canEdit,canRename,canDelete,canRemoveMyDriveParent))',
 				pageSize: 1000,
 				pageToken,
 				supportsAllDrives: false,
@@ -211,6 +218,11 @@ export class GoogleDriveAdapter extends BaseCloudAdapter {
 			modifiedTime: file.modifiedTime || null,
 			owner_name: file.owners?.[0]?.displayName || null,
 			owner_email: file.owners?.[0]?.emailAddress || this.account.email,
+			capabilities: {
+				starred: true,
+				rename: Boolean(file.capabilities?.canRename || file.capabilities?.canEdit),
+				delete: Boolean(file.capabilities?.canDelete),
+			},
 		}));
 	}
 

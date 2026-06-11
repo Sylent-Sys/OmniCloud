@@ -9,6 +9,8 @@ export class BaseCloudAdapter {
 	getCapabilities() {
 		return {
 			starred: false,
+			rename: true,
+			delete: true,
 		};
 	}
 

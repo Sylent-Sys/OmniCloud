@@ -14,6 +14,8 @@ function buildDisplayNames(rows) {
 		modifiedTime: row.remote_modified_time || null,
 		capabilities: {
 			starred: row.provider === 'google_drive',
+			rename: true,
+			delete: true,
 		},
 	}));
 }

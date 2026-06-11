@@ -33,7 +33,6 @@ import {
 	IconSearch,
 	IconStar,
 	IconStarFilled,
-	IconTrash,
 	IconVideo,
 	IconVideoFilled,
 	IconX,
@@ -182,10 +181,10 @@ const primarySelectedFile = computed(() => selectedFiles.value[0] || null);
 const currentFolder = computed(() => folderStack.value.at(-1) || null);
 const canPreviewSelection = computed(() => selectedCount.value === 1 && canPreviewFile(primarySelectedFile.value));
 const canDownloadSelection = computed(() => selectedFiles.value.some((file) => !file.is_folder));
-const canRenameSelection = computed(() => selectedCount.value === 1);
+const canRenameSelection = computed(() => selectedCount.value === 1 && Boolean(primarySelectedFile.value?.capabilities?.rename));
 const canToggleStarSelection = computed(() => selectedCount.value === 1 && Boolean(primarySelectedFile.value?.capabilities?.starred));
 const isPrimarySelectedStarred = computed(() => Boolean(primarySelectedFile.value?.is_starred));
-const canOpenSelection = computed(() => selectedCount === 1 && Boolean(primarySelectedFile.value?.is_folder));
+const canOpenSelection = computed(() => selectedCount.value === 1 && Boolean(primarySelectedFile.value?.is_folder));
 const breadcrumbItems = computed(() => [
 	{ label: t('nav.shared'), index: -1 },
 	...folderStack.value.map((item, index) => ({
@@ -609,27 +608,6 @@ async function renameSelectedFile() {
 	}
 }
 
-async function deleteSelectedFile() {
-	const targets = getActionFiles();
-	if (!targets.length) return;
-	const confirmed = window.confirm(
-		targets.length === 1
-			? t('drive.deleteConfirm', { name: targets[0].file_name })
-			: t('drive.deleteConfirm', { name: `${targets.length} items` }),
-	);
-	closeContextMenu();
-	if (!confirmed) return;
-	errorMessage.value = '';
-	try {
-		if (targets.length === 1) await api.deleteFile(targets[0].id);
-		else await api.deleteFiles(targets.map((file) => file.id));
-		clearSelection();
-		await refreshShared();
-	} catch (error) {
-		errorMessage.value = error.message;
-	}
-}
-
 function downloadSelection() {
 	const downloadableFiles = getActionFiles().filter((file) => !file.is_folder);
 	closeContextMenu();
@@ -719,9 +697,6 @@ onBeforeUnmount(() => {
 					</button>
 					<button type="button" class="inline-flex size-9 items-center justify-center rounded-full transition disabled:cursor-not-allowed disabled:opacity-45 enabled:hover:bg-[#d2e3fc] dark:enabled:hover:bg-sky-500/20" :title="t('drive.details')" :disabled="selectedCount !== 1" @click="showSelectedFileDetails">
 						<IconInfoCircle :size="18" :stroke="2" />
-					</button>
-					<button type="button" class="inline-flex size-9 items-center justify-center rounded-full text-[#c5221f] transition hover:bg-[#fce8e6] dark:text-red-300 dark:hover:bg-red-950/30" :title="t('common.delete')" @click="deleteSelectedFile">
-						<IconTrash :size="18" :stroke="2" />
 					</button>
 				</div>
 
@@ -868,9 +843,6 @@ onBeforeUnmount(() => {
 				</button>
 				<button type="button" class="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[#202124] hover:bg-[#f8fafd] disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-100 dark:hover:bg-slate-700/70" :disabled="selectedCount !== 1" @click="showSelectedFileDetails">
 					<IconInfoCircle :size="17" :stroke="2" /><span>{{ t('drive.details') }}</span>
-				</button>
-				<button type="button" class="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-[#c5221f] hover:bg-[#fce8e6] dark:text-red-300 dark:hover:bg-red-950/30" @click="deleteSelectedFile">
-					<IconTrash :size="17" :stroke="2" /><span>{{ t('common.delete') }}</span>
 				</button>
 			</div>
 
