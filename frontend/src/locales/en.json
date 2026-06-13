@@ -77,6 +77,9 @@
 	},
 	"header": {
 		"searchPlaceholder": "Search in OmniCloud",
+		"clearSearch": "Clear search",
+		"searchLoading": "Searching...",
+		"searchNoResults": "No results found.",
 		"openNav": "Open navigation menu",
 		"closeNav": "Close navigation menu",
 		"openProfile": "Open creator profile",

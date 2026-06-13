@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
 import { IconChevronRight, IconFolder } from '@tabler/icons-vue';
@@ -36,6 +36,8 @@ const dragDepth = ref(0);
 const fileInputRef = ref(null);
 const folderInputRef = ref(null);
 const lastObservedSyncAt = ref('');
+const highlightedFileId = ref(null);
+const highlightTimeout = ref(null);
 
 const view = useFileListView({
 	sourceFiles: computed(() => fileTreeStore.filteredFiles),
@@ -99,7 +101,7 @@ const {
 	actionLabel,
 } = view;
 
-const { visibleItems: renderedFiles, handleScroll: handleListScroll } = useIncrementalRender(view.sortedFiles, {
+const { renderCount, visibleItems: renderedFiles, handleScroll: handleListScroll } = useIncrementalRender(view.sortedFiles, {
 	initialCount: 80,
 	step: 80,
 	threshold: 240,
@@ -108,6 +110,52 @@ const { visibleItems: renderedFiles, handleScroll: handleListScroll } = useIncre
 watch(searchTerm, (term) => {
 	fileTreeStore.applySearch(term);
 });
+
+watch(() => fileTreeStore.files, consumePendingHighlight, { flush: 'post' });
+
+function clearHighlightTimer() {
+	if (!highlightTimeout.value) return;
+	window.clearTimeout(highlightTimeout.value);
+	highlightTimeout.value = null;
+}
+
+function hasHighlightedFile(targetId) {
+	return Boolean(targetId) && fileTreeStore.files.some((file) => file.id === targetId);
+}
+
+function ensureHighlightedFileRendered(targetId) {
+	const targetIndex = sortedFiles.value.findIndex((file) => file.id === targetId);
+	if (targetIndex >= renderCount.value) {
+		renderCount.value = targetIndex + 1;
+	}
+}
+
+function scrollToFile(targetId) {
+	document.querySelector(`[data-file-id="${CSS.escape(targetId)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+function scheduleHighlightClear(targetId) {
+	clearHighlightTimer();
+	highlightTimeout.value = window.setTimeout(() => {
+		if (highlightedFileId.value === targetId) {
+			highlightedFileId.value = null;
+		}
+		highlightTimeout.value = null;
+	}, 2400);
+}
+
+async function consumePendingHighlight() {
+	const targetId = fileTreeStore.pendingHighlightId;
+	if (!hasHighlightedFile(targetId)) return;
+
+	fileTreeStore.pendingHighlightId = null;
+	ensureHighlightedFileRendered(targetId);
+	highlightedFileId.value = targetId;
+	scheduleHighlightClear(targetId);
+
+	await nextTick();
+	scrollToFile(targetId);
+}
 
 function openItemOnDoubleClick(file) {
 	if (file.is_folder) {
@@ -271,10 +319,11 @@ function handleVisibilityChange() {
 	}
 }
 
-onMounted(() => {
+onMounted(async () => {
 	const initialPath = fileTreeStore.pendingPath || '/';
 	fileTreeStore.pendingPath = null;
-	fileTreeStore.loadFiles(initialPath);
+	await fileTreeStore.loadFiles(initialPath);
+	consumePendingHighlight();
 	window.addEventListener('dragend', resetDragState);
 	window.addEventListener('drop', resetDragState);
 	window.addEventListener('blur', resetDragState);
@@ -282,6 +331,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+	clearHighlightTimer();
 	window.removeEventListener('dragend', resetDragState);
 	window.removeEventListener('drop', resetDragState);
 	window.removeEventListener('blur', resetDragState);
@@ -291,7 +341,7 @@ onBeforeUnmount(() => {
 
 <template>
 	<DriveShell current-section="drive" @new-folder="createNewFolder" @upload-files="openFilePicker" @upload-folder="openFolderPicker">
-		<div class="relative min-h-[calc(100vh-84px)] rounded-[24px] bg-white px-4 py-[18px] pb-5 text-[#202124] dark:bg-slate-800 dark:text-slate-100 sm:px-6" @click="clearSelection" @dragenter.prevent="handleDragEnter" @dragover.prevent="handleDragEnter" @dragleave.prevent="handleDragLeave" @drop.prevent="handleDrop">
+		<div id="MyDriveView" class="relative min-h-[calc(100vh-84px)] scroll-mt-20 rounded-[24px] bg-white px-4 py-[18px] pb-5 text-[#202124] dark:bg-slate-800 dark:text-slate-100 sm:px-6" @click="clearSelection" @dragenter.prevent="handleDragEnter" @dragover.prevent="handleDragEnter" @dragleave.prevent="handleDragLeave" @drop.prevent="handleDrop">
 			<input ref="fileInputRef" class="hidden" type="file" multiple @change="onFileInputChange" />
 			<input ref="folderInputRef" class="hidden" type="file" multiple webkitdirectory directory @change="onFolderInputChange" />
 
@@ -329,9 +379,11 @@ onBeforeUnmount(() => {
 						<div class="custom-scrollbar max-h-[min(70vh,780px)] overflow-y-auto overflow-x-hidden" @scroll="handleListScroll">
 							<FileListHeader :sortable="true" :sort-by="sortBy" :sort-direction="sortDirection" @sort="setSort" />
 
-							<FileListRow v-for="item in renderedFiles" :key="item.id" :item="item" :selected="isSelected(item)" name-field="display_name" @select="(event) => selectItem(event, item)" @open="openItemOnDoubleClick(item)" @contextmenu="(event) => openContextMenu(event, item)" />
+							<FileListRow v-for="item in renderedFiles" :key="item.id" :item="item" :selected="isSelected(item)" :highlighted="highlightedFileId === item.id" name-field="display_name" @select="(event) => selectItem(event, item)" @open="openItemOnDoubleClick(item)" @contextmenu="(event) => openContextMenu(event, item)" />
 							<div v-if="!sortedFiles.length && !isLoading" class="p-[18px] text-[#5f6368] dark:text-slate-400">{{ t('drive.noFiles') }}</div>
-							<div v-if="isLoading" class="p-[18px]"><LoadingState /></div>
+							<div v-if="isLoading" class="p-[18px]">
+								<LoadingState />
+							</div>
 						</div>
 					</div>
 				</div>
@@ -340,9 +392,11 @@ onBeforeUnmount(() => {
 
 			<div v-else class="relative">
 				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-					<FileListGridCard v-for="item in renderedFiles" :key="item.id" :item="item" :selected="isSelected(item)" name-field="display_name" @select="(event) => selectItem(event, item)" @open="openItemOnDoubleClick(item)" @contextmenu="(event) => openContextMenu(event, item)" />
+					<FileListGridCard v-for="item in renderedFiles" :key="item.id" :item="item" :selected="isSelected(item)" :highlighted="highlightedFileId === item.id" name-field="display_name" @select="(event) => selectItem(event, item)" @open="openItemOnDoubleClick(item)" @contextmenu="(event) => openContextMenu(event, item)" />
 					<div v-if="!sortedFiles.length && !isLoading" class="col-span-full rounded-2xl border border-dashed border-[#dadce0] bg-white px-5 py-8 text-center text-[#5f6368] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">{{ t('drive.noFiles') }}</div>
-					<div v-if="isLoading" class="col-span-full rounded-2xl border border-dashed border-[#dadce0] bg-white px-5 py-8 text-center text-[#5f6368] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"><LoadingState /></div>
+					<div v-if="isLoading" class="col-span-full rounded-2xl border border-dashed border-[#dadce0] bg-white px-5 py-8 text-center text-[#5f6368] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+						<LoadingState />
+					</div>
 				</div>
 				<LoadingState v-if="actionInProgress" variant="overlay" :message="actionLabel || t('drive.processing')" />
 			</div>

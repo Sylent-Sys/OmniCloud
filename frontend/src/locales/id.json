@@ -77,6 +77,9 @@
 	},
 	"header": {
 		"searchPlaceholder": "Telusuri di OmniCloud",
+		"clearSearch": "Bersihkan pencarian",
+		"searchLoading": "Mencari...",
+		"searchNoResults": "Tidak ada hasil ditemukan.",
 		"openNav": "Buka menu navigasi",
 		"closeNav": "Tutup menu navigasi",
 		"openProfile": "Buka profil creator",

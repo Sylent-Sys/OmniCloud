@@ -39,6 +39,32 @@ export function listFilesByPath(userId, virtualPath = '/') {
 	return buildDisplayNames(rows);
 }
 
+export function searchFiles(userId, term = '', limit = 50) {
+	const normalizedTerm = String(term || '').trim();
+	if (!normalizedTerm) return [];
+
+	const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 100));
+	const rows = db
+		.prepare(`
+      SELECT
+        fm.*, ca.provider, ca.email
+      FROM file_metadata fm
+      INNER JOIN cloud_accounts ca ON ca.id = fm.cloud_account_id
+			WHERE fm.user_id = ?
+				AND ca.status = 'active'
+				AND fm.file_name LIKE ? COLLATE NOCASE
+      ORDER BY
+				CASE WHEN fm.file_name LIKE ? COLLATE NOCASE THEN 0 ELSE 1 END,
+				fm.is_folder DESC,
+				COALESCE(fm.remote_created_time, fm.created_at) DESC,
+				fm.file_name COLLATE NOCASE ASC
+			LIMIT ?
+    `)
+		.all(userId, `%${normalizedTerm}%`, `${normalizedTerm}%`, safeLimit);
+
+	return buildDisplayNames(rows);
+}
+
 export function createFileMetadata(record) {
 	const payload = {
 		id: randomUUID(),
