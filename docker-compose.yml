@@ -8,15 +8,23 @@ services:
     environment:
       PORT: 8787
       DATABASE_PATH: /app/data/omnicloud.db
-      CORS_ORIGIN: http://localhost:8080
-      FRONTEND_URL: http://localhost:8080
-      GOOGLE_REDIRECT_URI: http://localhost:8080/api/accounts/google/callback
-      ONEDRIVE_REDIRECT_URI: http://localhost:8080/api/accounts/onedrive/callback
-      DROPBOX_REDIRECT_URI: http://localhost:8080/api/accounts/dropbox/callback
-      YANDEX_REDIRECT_URI: http://localhost:8080/api/accounts/yandex/callback
+      CORS_ORIGIN: ${FRONTEND_URL:-http://localhost:8080}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
+      GOOGLE_REDIRECT_URI: ${FRONTEND_URL:-http://localhost:8080}/api/accounts/google/callback
+      ONEDRIVE_REDIRECT_URI: ${FRONTEND_URL:-http://localhost:8080}/api/accounts/onedrive/callback
+      DROPBOX_REDIRECT_URI: ${FRONTEND_URL:-http://localhost:8080}/api/accounts/dropbox/callback
+      YANDEX_REDIRECT_URI: ${FRONTEND_URL:-http://localhost:8080}/api/accounts/yandex/callback
     volumes:
-      - omnicloud_api_data:/app/data
+      - type: volume
+        source: omnicloud_api_data
+        target: /app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8787/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   web:
     build:
@@ -25,11 +33,20 @@ services:
       args:
         VITE_API_BASE_URL: /api
         VITE_WS_BASE_URL: /ws/uploads
-    ports:
-      - "8080:80"
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+    expose:
+      - "80"
     depends_on:
       - api
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 volumes:
   omnicloud_api_data:
